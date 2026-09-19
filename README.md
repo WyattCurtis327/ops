@@ -20,6 +20,7 @@ All deliverables live in this repository. Interactive wireframes: [docs/wirefram
 | Research sources | [docs/14-research-sources.md](docs/14-research-sources.md) |
 | Pipeline phases (metrics × dimensions) | [docs/15-pipeline-phases.md](docs/15-pipeline-phases.md) |
 | Roles and actions by phase | [docs/16-roles-and-actions.md](docs/16-roles-and-actions.md) |
+| Gold layer data model | [docs/17-gold-layer-data-model.md](docs/17-gold-layer-data-model.md) |
 
 ## Inventory
 

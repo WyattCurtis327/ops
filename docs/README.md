@@ -30,6 +30,7 @@ Read in this order:
 18. [Research sources](14-research-sources.md) — cited MBA, ICE, ACES, GSE, CFPB sources and pack implications.
 19. [Pipeline phases](15-pipeline-phases.md) — each manufacturing phase with metrics and dimensions.
 20. [Roles and actions](16-roles-and-actions.md) — who does what in each phase, by Channel.
+21. [Gold layer data model](17-gold-layer-data-model.md) — facts, dimensions, metric views for every catalog metric.
 
 ## What this pack is not
 
