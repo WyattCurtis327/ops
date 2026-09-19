@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Operations wireframes by department</title>
+  <link rel="stylesheet" href="wireframe.css" />
+</head>
+<body>
+  <div class="wf-banner">
+    <span>Wireframes by Ops department / subcategory · <strong>Sample data — not company actuals</strong></span>
+    <span>P01–P15 desks · EXE = command center</span>
+  </div>
+  <nav class="chrome" id="nav"></nav>
+  <div class="page" id="app"></div>
+  <script>
+    const GROUPS = [
+      ["Index", [["HOME","Home"]]],
+      ["Leadership", [["EXE","Command D01"],["P15","Pipeline"],["P14","Capacity"]]],
+      ["File manufacturing", [["P01","Disclosure"],["P02","Processing"],["P03","Appraisal"],["P04","Title"],["P05","Insurance/MI"],["P06","Underwriting"],["P07","Conditions"],["P08","Closing"]]],
+      ["Correspondent", [["P09","Corr intake"]]],
+      ["After fund", [["P10","Post-close"],["P11","Delivery"]]],
+      ["Control", [["P12","Quality"],["P13","Vendors"]]]
+    ];
+    const ALIAS = {
+      SYS:"HOME", D01:"EXE", D02:"P15", D03:"P02", D04:"P03", D05:"P04",
+      D06:"P06", D07:"P08", D08:"P09", D09:"P10", D10:"P11", D11:"P12",
+      D12:"P13", D13:"P14", D14:"P01"
+    };
+    const META = {
+      HOME: { title:"Departments", owner:"All Ops", did:"—" },
+      EXE:  { title:"Ops Command Center", owner:"COO / Ops VP", did:"D01" },
+      P01:  { title:"Disclosure and file setup", owner:"Disclosure desk / setup", did:"D14" },
+      P02:  { title:"Processing", owner:"Processor / team lead", did:"D03" },
+      P03:  { title:"Appraisal and valuation", owner:"Appraisal desk", did:"D04" },
+      P04:  { title:"Title, escrow, and curative", owner:"Title desk / closer", did:"D05" },
+      P05:  { title:"Insurance and MI", owner:"Processor / MI desk", did:"No D15 — strip on D03/D05/D06" },
+      P06:  { title:"Underwriting", owner:"Underwriter", did:"D06 UW slice" },
+      P07:  { title:"Conditions and CTC", owner:"Processor + UW", did:"D06 conditions slice" },
+      P08:  { title:"Closing and funding", owner:"Closer / funding", did:"D07" },
+      P09:  { title:"Correspondent intake and pre-purchase", owner:"Correspondent ops", did:"D08" },
+      P10:  { title:"Post-closing and trailing docs", owner:"Post-close", did:"D09" },
+      P11:  { title:"Investor delivery", owner:"Shipping / delivery", did:"D10" },
+      P12:  { title:"Manufacturing quality", owner:"QC (ops)", did:"D11" },
+      P13:  { title:"Vendor management", owner:"Vendor management", did:"D12" },
+      P14:  { title:"Capacity, productivity, and queues", owner:"Ops leadership", did:"D13" },
+      P15:  { title:"Pipeline control", owner:"Ops leadership", did:"D02" }
+    };
+
+    function resolve(id) { return ALIAS[id] || (META[id] ? id : "HOME"); }
+    function go(id) { location.hash = resolve(id); render(resolve(id)); }
+
+    function nav(active) {
+      document.getElementById("nav").innerHTML = GROUPS.map(([g, items]) =>
+        `<div class="nav-row"><span class="g">${g}</span>${items.map(([id, lab]) =>
+          `<button class="${id===active?"active":""}" onclick="go('${id}')">${id} ${lab}</button>`
+        ).join("")}</div>`
+      ).join("");
+    }
+
+    function filters(extra, locked) {
+      const ch = locked || "All channels";
+      const lock = locked ? "lock" : "";
+      return `<div class="filters">
+        <label>Channel<select class="${lock}"><option>${ch}</option><option>Retail</option><option>Wholesale</option><option>Correspondent</option></select></label>
+        <label>Period<select><option>Last complete week (8–14 Sep 2026)</option><option>MTD (labeled Partial)</option></select></label>
+        <label>Product<select><option>All programs</option></select></label>
+        <label>Team<select><option>All fulfillment teams</option></select></label>
+        ${extra || ""}
+      </div>`;
+    }
+
+    function head(id, decision, extras) {
+      const m = META[id];
+      return `<div class="page-head">
+        <div>
+          <h1>${id} ${m.title}</h1>
+          <p class="owner">Department owner: ${m.owner} · Ships as ${m.did}</p>
+          <p class="decision">${decision}</p>
+        </div>
+        <div class="meta">
+          <span class="stamp">As-of snapshot: 19 Sep 2026 06:00 ops calendar</span>
+          <span class="stamp">Event-dated through: 18 Sep 2026 (prior business day)</span>
+          <span class="stamp">SAMPLE · ${extras || "analytic"}</span>
+        </div>
+      </div>`;
+    }
+
+    function kpi(o) {
+      const href = o.drill ? `href="#" onclick="go('${o.drill}');return false;"` : "";
+      const tag = o.drill ? "a" : "div";
+      let body = o.dual
+        ? `<div class="dual">${o.dual.map(d => `<div><div class="lab">${d.lab}</div><div class="val">${d.val}<small> ${d.unit||""}</small></div></div>`).join("")}</div>`
+        : `<div class="val">${o.val}<small> ${o.unit||""}</small></div>`;
+      return `<${tag} class="kpi" ${href}>
+        <div class="lab">${o.label}</div>${body}
+        <div class="wow ${o.wowClass||"ctx"}">${o.wow}</div>
+        <div class="foot">${o.id}${o.sla ? " · "+o.sla : ""} · ${o.basis}</div>
+      </${tag}>`;
+    }
+
+    function spark(pts, slaY) {
+      const d = pts.map((p,i) => `${i*20},${100-p}`).join(" ");
+      const sla = slaY != null ? `<line class="sla" x1="0" y1="${100-slaY}" x2="120" y2="${100-slaY}" stroke="#333" stroke-width="1"/>` : "";
+      return `<svg class="line" viewBox="0 0 120 100" preserveAspectRatio="none">${sla}
+        <polyline fill="none" stroke="#222" stroke-width="2" points="${d}"/></svg>`;
+    }
+
+    function stackCols(items) {
+      return `<div class="legend"><span><i class="sw r"></i>Retail</span><span><i class="sw w"></i>Wholesale</span><span><i class="sw c"></i>Correspondent</span></div>
+        <div class="bars">${items.map(it => `<div class="col"><div class="stack" style="height:${it.h}%">
+          <div class="seg r" style="height:${it.r}%"></div><div class="seg w" style="height:${it.w}%"></div><div class="seg c" style="height:${it.c}%"></div>
+        </div><div class="cap">${it.cap}</div></div>`).join("")}</div>`;
+    }
+
+    function heat(rows) {
+      const bands = ["0–2 d","3–5 d","6–10 d","11+ d"];
+      return `<div class="heat">
+        <div class="hrow"><div></div>${bands.map(b=>`<div class="h">${b}</div>`).join("")}</div>
+        ${rows.map(r => `<div class="hrow"><div>${r.m}</div>${r.c.map(x=>`<div class="h h${x}">${x===1?"12":x===2?"28":x===3?"19":"9"}</div>`).join("")}</div>`).join("")}
+      </div>`;
+    }
+
+    function table(headers, rows) {
+      return `<table class="data"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?"num":""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    }
+
+    function funnel(steps) {
+      return `<div class="funnel">${steps.map(s => `<div class="step ${s.drop?"drop":""}"><div>${s.lab}</div><strong>${s.n}</strong></div>`).join("")}</div>`;
+    }
+
+    function drills(links) {
+      return `<div class="footer-drills">${links.map(([id,t]) => `<a href="#" onclick="go('${id}');return false;">${id} ${t}</a>`).join("")}</div>`;
+    }
+
+    function card(id, q) {
+      const m = META[id];
+      return `<a class="dept-card" href="#${id}" onclick="go('${id}');return false;">
+        <div class="pid">${id} · ${m.did} · ${m.owner}</div>
+        <h3>${m.title}</h3>
+        <p>${q}</p>
+      </a>`;
+    }
+
+    const pages = {
+      HOME() {
+        return `<div class="page-head"><div>
+          <h1>Wireframes by department</h1>
+          <p class="decision">Each card is one Operations subcategory (or the enterprise roll-up). Walk Retail/Wholesale left-to-right through file manufacturing, then after-fund. Correspondent is its own spine (P09).</p>
+        </div></div>
+        <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#5c5c5c">Leadership</h2>
+        <div class="dept-grid" style="margin-bottom:16px">
+          ${card("EXE","On-time, on-capacity, converting Pipeline to funds/purchases/deliveries?")}
+          ${card("P15","Where is WIP, how old, who waits, what completes in 7/14/30?")}
+          ${card("P14","Do processor/UW/closer FTE match this week’s arrivals?")}
+        </div>
+        <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#5c5c5c">File manufacturing (Retail / Wholesale desks)</h2>
+        <div class="dept-grid" style="margin-bottom:16px">
+          ${card("P01","3-calendar-day LE and a clean File start?")}
+          ${card("P02","File-complete turn, queue, waiting-on party?")}
+          ${card("P03","Order-to-report, waiver, ROV, AMC on-time?")}
+          ${card("P04","Commitment, curative, CTC not scheduled?")}
+          ${card("P05","HOI / flood / MI blocking CTC? (no D15)")}
+          ${card("P06","First-decision turn and Suspense?")}
+          ${card("P07","Conditions per file, CTC, revoke, rework?")}
+          ${card("P08","CTC to Funded — Retail/Wholesale only?")}
+        </div>
+        <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#5c5c5c">Correspondent spine</h2>
+        <div class="dept-grid" style="margin-bottom:16px">
+          ${card("P09","Submission → purchase by TPO. Never labeled Funded.")}
+        </div>
+        <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#5c5c5c">After fund / purchase</h2>
+        <div class="dept-grid" style="margin-bottom:16px">
+          ${card("P10","Trailing WIP by document type, ship-ready?")}
+          ${card("P11","Delivered vs investor purchased, kickouts?")}
+        </div>
+        <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#5c5c5c">Control functions</h2>
+        <div class="dept-grid">
+          ${card("P12","Manufacturing defects — not audit QC")}
+          ${card("P13","AMC/title on-time and concentration. TPO is not a Vendor.")}
+        </div>
+        <p class="note" style="margin-top:16px">P06 and P07 share shipped dashboard D06. P05 has no D15 — production places its tiles on processing, title, and UW. Lifecycle: P01→P02→P03/P04/P05→P06→P07→P08→P10→P11. Correspondent: P09→P10→P11.</p>`;
+      },
+
+      EXE() {
+        return head("EXE", "Are we on-time, on-capacity, and converting Pipeline to funds / purchases / deliveries? One screen. No loan table.", "static · not a department")
+        + `<div class="note"><strong>Header context:</strong> Locks in force M-VOL-03 = 3,410 (As-of). Not a ninth tile. Rolls up every desk below.</div>`
+        + filters()
+        + `<div class="kpis">
+            ${kpi({label:"Pipeline units", val:"4,820", unit:"files", wow:"WoW ▲ 180 (context)", id:"M-VOL-13", basis:"As-of", drill:"P15"})}
+            ${kpi({label:"Funded + purchased units", val:"1,146", unit:"units", wow:"WoW ▲ 4.2%", wowClass:"good", id:"M-VOL-16", basis:"event-dated", drill:"P15"})}
+            ${kpi({label:"Cycle time p50 (do not average)", dual:[{lab:"Start-to-fund R/W", val:"28", unit:"bd"},{lab:"Sub→purchase Corr", val:"3.1", unit:"bd"}], wow:"R/W vs SLA 25 bd · Corr vs SLA 3 bd", wowClass:"bad", id:"M-CYC-03 · M-CYC-11", basis:"event-dated", drill:"P08"})}
+            ${kpi({label:"CTC · Purchase approved", dual:[{lab:"CTC R/W", val:"612"},{lab:"Purchase appr. Corr", val:"188"}], wow:"WoW CTC ▼ 3%", wowClass:"bad", id:"M-VOL-05 · M-VOL-05C", basis:"event-dated", drill:"P07"})}
+            ${kpi({label:"SLA-breach % of Pipeline", val:"18%", wow:"WoW ▲ 2 pp (up bad)", wowClass:"bad", id:"M-AGE-03", basis:"As-of", drill:"P15"})}
+            ${kpi({label:"Pull-through (cohort)", dual:[{lab:"Start-to-fund", val:"71%"},{lab:"Sub→purchase", val:"86%"}], wow:"Toggle M-FAL-02 lock-to-fund", id:"M-FAL-01 · M-FAL-03", basis:"cohort month", drill:"P15"})}
+            ${kpi({label:"Kickout rate", val:"2.4%", wow:"WoW ▲ 0.3 pp (up bad)", wowClass:"bad", id:"M-QLT-10", basis:"event-dated", drill:"P11"})}
+            ${kpi({label:"Completions minus arrivals", val:"−42", unit:"proc+UW", wow:"Arrivals outrunning completions", wowClass:"bad", id:"M-CAP-05", basis:"event-dated week", drill:"P14"})}
+          </div>`
+        + `<div class="row cols-3">
+            <div class="panel"><h2>Funded + purchased · last 6 weeks</h2>${spark([40,48,44,52,50,62])}</div>
+            <div class="panel"><h2>Pipeline by Channel (As-of)</h2>${stackCols([{cap:"Now", h:90, r:50, w:25, c:25},{cap:"−1w", h:80, r:48, w:28, c:24}])}</div>
+            <div class="panel"><h2>SLA-breach %</h2>${spark([12,14,13,16,17,18], 12)}</div>
+          </div>`
+        + drills([["P15","Pipeline"],["P14","Capacity"],["P11","Delivery"],["P12","Quality"]]);
+      },
+
+      P15() {
+        return head("P15", "Where is WIP, how old, who are we waiting on, what Funds or purchases in 7/14/30 days?", "analytic · huddle control")
+        + `<div class="callout">Cross-cutting. Not a team. Default drill from Command Center. LOS remains the worklist.</div>`
+        + filters(`<label>Milestone<select><option>All milestones</option></select></label><label>Waiting-on<select><option>All parties</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Pipeline units", val:"4,820", wow:"context", id:"M-VOL-13", basis:"As-of"})}
+            ${kpi({label:"Post-close WIP", val:"1,102", wow:"context", id:"M-VOL-14", basis:"As-of", drill:"P10"})}
+            ${kpi({label:"Locks in force", val:"3,410", wow:"context", id:"M-VOL-03", basis:"As-of"})}
+            ${kpi({label:"SLA-breach %", val:"18%", wowClass:"bad", wow:"up bad", id:"M-AGE-03", basis:"As-of"})}
+            ${kpi({label:"Stuck files", val:"214", wowClass:"bad", wow:"up bad", id:"M-AGE-04", basis:"As-of"})}
+            ${kpi({label:"Waiting-on internal %", val:"31%", wow:"context", id:"M-AGE-05", basis:"As-of"})}
+            ${kpi({label:"Lock expiring before CTC", val:"67", wowClass:"bad", wow:"up bad", id:"M-AGE-06", basis:"As-of"})}
+            ${kpi({label:"Expected fund+purch 7d", val:"890", wow:"if they all convert", id:"M-FST-03", basis:"As-of hatched"})}
+          </div>`
+        + `<div class="row cols-2">
+            <div class="panel"><h2>Units in milestone × Channel</h2>
+              ${stackCols([{cap:"Setup", h:40, r:60, w:30, c:10},{cap:"Proc", h:80, r:55, w:30, c:15},{cap:"UW", h:70, r:50, w:25, c:25},{cap:"CTC", h:50, r:70, w:30, c:0},{cap:"Close", h:45, r:65, w:35, c:0},{cap:"Corr purch", h:55, r:0, w:0, c:100},{cap:"Post-cl", h:60, r:50, w:20, c:30}])}</div>
+            <div class="panel"><h2>Age heatmap (older = darker = worse)</h2>
+              ${heat([{m:"Processing", c:[1,2,3,4]},{m:"UW", c:[2,2,3,3]},{m:"Conditions", c:[1,2,3,4]},{m:"CTC / sched", c:[2,3,2,1]},{m:"Corr purchase", c:[2,2,1,3]},{m:"Post-close", c:[1,2,3,4]}])}</div>
+          </div>`
+        + `<div class="panel"><h2>Stuck-file export (action in LOS)</h2>
+          ${table(["Loan #","Channel","Milestone","Age bd","Waiting-on","Assignee"],
+            [["1002841","Retail","Processing","11","Borrower","A. Patel"],["1002910","Wholesale","Conditions","8","Broker","J. Kim"],["C-44821","Correspondent","Purchase appr.","3","TPO","R. Cole"]])}</div>`
+        + drills([["P02","Processing"],["P06","UW"],["P07","Conditions"],["P08","Closing"],["P09","Correspondent"],["P10","Post-close"]]);
+      },
+
+      P01() {
+        return head("P01", "Hit the 3-general-business-day initial LE send and a clean File start. Correspondent off — no company LE.", "analytic · TRID general business days")
+        + `<div class="callout warn">Initial LE send = 3 creditor-open days (12 CFR 1026.2(a)(6) general definition). Saturday counts only if the company is open. CD wait is a different clock (specific business days). Correspondent intake is P09.</div>`
+        + filters("", "Retail + Wholesale")
+        + `<div class="kpis">
+            ${kpi({label:"Files started", val:"1,280", wow:"", id:"M-VOL-01", basis:"event", drill:"P15"})}
+            ${kpi({label:"Applications taken", val:"1,310", wow:"R/W only", id:"M-VOL-02", basis:"event"})}
+            ${kpi({label:"LE turn p50/p90", dual:[{lab:"p50", val:"2.1", unit:"gen bd"},{lab:"p90", val:"3.4", unit:"gen bd"}], wow:"line at 3 general business days", id:"M-CYC-04", basis:"TRID general bd"})}
+            ${kpi({label:"Initial LE miss rate", val:"6.2%", wowClass:"bad", wow:"up bad · regulatory", id:"M-REG-01", basis:"calendar"})}
+            ${kpi({label:"Redisclosure rate", val:"14%", wow:"context", id:"M-QLT-04", basis:"event"})}
+            ${kpi({label:"eSign incomplete", val:"39", wow:"Waiting-on borrower/Broker", id:"setup WIP", basis:"As-of"})}
+          </div>`
+        + `<div class="panel"><h2>Distribution of general business days to initial LE</h2>
+          ${stackCols([{cap:"0d", h:20, r:80, w:20, c:0},{cap:"1d", h:50, r:70, w:30, c:0},{cap:"2d", h:80, r:65, w:35, c:0},{cap:"3d", h:60, r:60, w:40, c:0},{cap:"4d+", h:25, r:50, w:50, c:0}])}</div>`
+        + drills([["P02","Processing"],["P09","Corr intake if Channel forced"]]);
+      },
+
+      P02() {
+        return head("P02", "File-complete turn, queue per FTE, waiting-on. Correspondent package review only if assigned to processors — else P09.", "analytic")
+        + filters(`<label>Processor<select><option>All</option></select></label><label>Waiting-on<select><option>All</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Start → UW submit p50 / p90", dual:[{lab:"p50", val:"4.2", unit:"bd"},{lab:"p90", val:"9.1", unit:"bd"}], wow:"p90 vs SLA 5 bd", wowClass:"bad", id:"M-CYC-05", basis:"event-dated"})}
+            ${kpi({label:"In processing", val:"1,540", wow:"As-of", id:"M-AGE-01", basis:"As-of"})}
+            ${kpi({label:"SLA-breach", val:"22%", wowClass:"bad", wow:"up bad", id:"M-AGE-03", basis:"As-of"})}
+            ${kpi({label:"Queue / processor FTE", val:"21", wow:"in band 15–25", id:"M-CAP-02", basis:"As-of"})}
+            ${kpi({label:"Units / FTE", val:"18", wow:"week", id:"M-CAP-01", basis:"event-dated"})}
+            ${kpi({label:"Blocked on HOI/MI", val:"64", wow:"see P05", id:"from P05", basis:"As-of", drill:"P05"})}
+          </div>`
+        + `<div class="row cols-2">
+            <div class="panel"><h2>Turn p50/p90 vs ASSUMED SLA (5 bd dashed)</h2>${spark([5,6,5,7,8,9], 45)}</div>
+            <div class="panel"><h2>Waiting-on mix</h2>${stackCols([{cap:"Borrower", h:70, r:80, w:20, c:0},{cap:"Broker", h:50, r:10, w:90, c:0},{cap:"Vendor", h:40, r:50, w:40, c:10},{cap:"Internal", h:35, r:60, w:30, c:10}])}</div>
+          </div>`
+        + drills([["P03","Appraisal"],["P04","Title"],["P05","Insurance/MI"],["P01","Disclosure"],["P14","Capacity"]]);
+      },
+
+      P03() {
+        return head("P03", "Keep valuation off the CTC critical path. Waivers excluded from order-to-report. Corr = review, not new order.", "analytic · order grain")
+        + filters(`<label>AMC<select><option>All AMCs</option></select></label><label>Appraisal path<select><option>All paths</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Order → report p50 / p90", dual:[{lab:"p50", val:"6.1"},{lab:"p90", val:"12.4"}], wow:"p90 vs 7 bd SLA", wowClass:"bad", id:"M-CYC-08", basis:"order grain"})}
+            ${kpi({label:"Review p50", val:"0.8", unit:"bd", wow:"SLA 1 bd", wowClass:"good", id:"M-CYC-08A", basis:"event-dated"})}
+            ${kpi({label:"AMC on-time %", val:"74%", wowClass:"bad", wow:"up good, below SLA", id:"M-VEN-03", basis:"event-dated", drill:"P13"})}
+            ${kpi({label:"Waiver rate", val:"18%", wow:"context — do not color green", id:"M-VOL-15", basis:"event-dated"})}
+            ${kpi({label:"ROV / revision %", val:"9%", wowClass:"bad", wow:"up bad", id:"M-QLT-05", basis:"event-dated"})}
+            ${kpi({label:"Open orders past SLA", val:"126", wowClass:"bad", wow:"As-of", id:"order analog M-AGE-03", basis:"As-of"})}
+          </div>`
+        + `<div class="note"><strong>Path mix:</strong> company-ordered · Broker-ordered (clock from received-in) · transferred · waived · seller (Corr, no M-CYC-08).</div>`
+        + `<div class="panel"><h2>AMC rank (department view of P13)</h2>
+          ${table(["AMC","Orders","On-time %","p90 bd","Revision %"],[["Northstar","410","81%","9.2","6%"],["Summit","288","61%","14.8","12%"],["Staff panel","90","88%","7.1","4%"]])}</div>`
+        + drills([["P13","Vendors"],["P02","Processing"]]);
+      },
+
+      P04() {
+        return head("P04", "Clear title in time for CTC. Funding is P08. Curative rate is context.", "analytic")
+        + filters(`<label>Title company<select><option>All</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Order → commitment p50/p90", dual:[{lab:"p50", val:"4.0"},{lab:"p90", val:"8.5"}], wow:"SLA 5 bd", id:"M-CYC-09", basis:"order"})}
+            ${kpi({label:"Curative cycle p50", val:"4.8", unit:"bd", wow:"SLA 5 bd", id:"M-CYC-09A", basis:"event"})}
+            ${kpi({label:"Curative rate", val:"34%", wow:"context", id:"M-QLT-06", basis:"event"})}
+            ${kpi({label:"Title on-time %", val:"79%", wowClass:"good", wow:"up good", id:"M-VEN-03", basis:"event", drill:"P13"})}
+            ${kpi({label:"CTC not scheduled", val:"41", wowClass:"bad", wow:"up bad", id:"M-AGE-07", basis:"As-of", drill:"P08"})}
+            ${kpi({label:"Waiting-on HOA / payoff", val:"29", wow:"coordination", id:"M-AGE-05 slice", basis:"As-of"})}
+          </div>`
+        + `<div class="row cols-2">
+            <div class="panel"><h2>Commitment p90 by state</h2>${table(["State","p90","On-time %"],[["NY","14.2","54%"],["NJ","11.0","62%"],["TX","6.1","88%"]])}</div>
+            <div class="panel"><h2>Closing-type mix (feeds P08)</h2>${stackCols([{cap:"Wet", h:50, r:70, w:30, c:0},{cap:"Hybrid", h:70, r:60, w:40, c:0},{cap:"eClose", h:40, r:80, w:20, c:0}])}</div>
+          </div>`
+        + drills([["P08","Closing"],["P13","Vendors"],["P05","Insurance"]]);
+      },
+
+      P05() {
+        return head("P05", "Confirm HOI, flood, and MI so CTC is not blocked. No dedicated enterprise dashboard — this is the department contract; tiles land on P02, P04, and P06 in production.", "analytic · subcategory without D15")
+        + `<div class="callout warn">Do not build D15 unless volume justifies it. Wireframe exists so the MI desk has a home. Correspondent = confirm coverage, not a new MI application.</div>`
+        + filters(`<label>MI company<select><option>All</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"HOI accept p50", val:"3.4", unit:"bd", wow:"SLA 5 bd", id:"M-CYC-16", basis:"event"})}
+            ${kpi({label:"MI cert p50", val:"2.1", unit:"bd", wow:"SLA 3 bd · MI-required files only", id:"M-CYC-16A", basis:"event"})}
+            ${kpi({label:"Flood determination p50", val:"0.4", unit:"bd", wow:"SLA 1 bd", id:"flood order", basis:"event"})}
+            ${kpi({label:"CTC-blocked on HOI", val:"41", wowClass:"bad", wow:"waiting-on insurance", id:"M-AGE-05 slice", basis:"As-of", drill:"P07"})}
+            ${kpi({label:"CTC-blocked on MI cert", val:"23", wowClass:"bad", wow:"FHA/VA/high LTV", id:"M-AGE-05 slice", basis:"As-of", drill:"P06"})}
+            ${kpi({label:"HOI received not accepted", val:"17", wow:"data quality: received ≠ accepted", id:"HOI status", basis:"As-of"})}
+          </div>`
+        + `<div class="row cols-2">
+            <div class="panel"><h2>MI cert turn by MI company</h2>${table(["MI company","Apply→cert p50","p90","Open certs"],[["Arch","1.8","3.4","22"],["Radian","2.4","5.1","18"],["MGIC","2.0","4.0","11"]])}</div>
+            <div class="panel"><h2>Where this ships</h2>
+              <p class="sub">Production placement, not a 15th command-center tile.</p>
+              <ul>
+                <li>HOI aging → P02 Processing</li>
+                <li>Flood order on-time → P13 Vendors</li>
+                <li>MI cert → P06 Underwriting</li>
+                <li>CTC blocked on insurance → P07 Conditions</li>
+              </ul>
+            </div>
+          </div>`
+        + drills([["P02","Processing"],["P06","UW"],["P07","Conditions"],["P13","Vendors"]]);
+      },
+
+      P06() {
+        return head("P06", "Issue the first credit (or Correspondent eligibility) decision on time. Conditions and CTC are the next department (P07). Same shipped dashboard D06.", "analytic · UW slice")
+        + filters(`<label>UW team<select><option>All</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"First decisions", val:"980", wow:"week", id:"M-VOL-04", basis:"event"})}
+            ${kpi({label:"UW turn p50/p90", dual:[{lab:"p50", val:"0.9"},{lab:"p90", val:"2.4"}], wow:"SLA 1 / 2 bd", id:"M-CYC-06", basis:"event"})}
+            ${kpi({label:"Suspense rate", val:"16%", wowClass:"bad", wow:"up bad", id:"M-QLT-02", basis:"event"})}
+            ${kpi({label:"Queue / UW FTE", val:"10", wow:"band 8–12", id:"M-CAP-02", basis:"As-of", drill:"P14"})}
+            ${kpi({label:"MI cert still open", val:"23", wow:"from P05", id:"M-CYC-16A WIP", basis:"As-of", drill:"P05"})}
+            ${kpi({label:"Corr rejects (not credit deny)", val:"12", wow:"Channel = Corr", id:"E-UW-FIRST reject", basis:"event", drill:"P09"})}
+          </div>`
+        + `<div class="note">Persist <strong>E-UW-FIRST</strong>. Later decisions do not overwrite. Correspondent reject is not Retail deny. CTC volume lives on <a href="#P07" onclick="go('P07');return false;">P07</a>.</div>`
+        + `<div class="panel"><h2>First-decision mix</h2>${stackCols([{cap:"Approve", h:80, r:70, w:30, c:0},{cap:"Suspense", h:35, r:55, w:45, c:0},{cap:"Deny", h:20, r:60, w:40, c:0}])}</div>`
+        + drills([["P07","Conditions / CTC"],["P02","Processing (Suspense returns)"],["P09","Correspondent"],["P14","Capacity"]]);
+      },
+
+      P07() {
+        return head("P07", "Clear PTD/PTF and stamp CTC (Retail/Wholesale) or purchase-approved (Correspondent analog is P09). Shares D06 with P06.", "analytic · conditions slice")
+        + filters(`<label>PTD vs PTF<select><option>Both</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Conditions / file", val:"4.7", wow:"PTD 3.1 · PTF 1.6", id:"M-QLT-01", basis:"event"})}
+            ${kpi({label:"Condition turn p50", val:"1.8", unit:"bd", wow:"SLA 2 bd · condition grain", id:"M-CYC-07", basis:"event"})}
+            ${kpi({label:"File condition clock p50", val:"4.0", unit:"bd", wow:"M-CYC-07F", id:"M-CYC-07F", basis:"event"})}
+            ${kpi({label:"CTC", val:"612", wowClass:"good", wow:"up good · not Corr", id:"M-VOL-05", basis:"event", drill:"P08"})}
+            ${kpi({label:"CTC revoke %", val:"6%", wowClass:"bad", wow:"up bad", id:"M-QLT-14", basis:"event"})}
+            ${kpi({label:"Rework %", val:"8%", wowClass:"bad", wow:"up bad", id:"M-QLT-03", basis:"event"})}
+            ${kpi({label:"Lock expiring pre-CTC", val:"67", wowClass:"bad", wow:"risk set", id:"M-AGE-06", basis:"As-of"})}
+            ${kpi({label:"CTC not scheduled", val:"41", wowClass:"bad", wow:"hand to P08", id:"M-AGE-07", basis:"As-of", drill:"P08"})}
+          </div>`
+        + `<div class="row cols-2">
+            <div class="panel"><h2>Waiting-on for open conditions</h2>${stackCols([{cap:"Borrower", h:60, r:80, w:20, c:0},{cap:"Broker/TPO", h:55, r:15, w:50, c:35},{cap:"Internal UW", h:30, r:70, w:20, c:10}])}</div>
+            <div class="panel"><h2>Start → CTC p50 (M-CYC-01)</h2>${spark([40,42,38,44,50,48], 40)}</div>
+          </div>`
+        + drills([["P06","Underwriting"],["P08","Closing"],["P09","Corr purchase-approved"],["P15","Pipeline"]]);
+      },
+
+      P08() {
+        return head("P08", "Convert CTC to Funded. Correspondent is off. Purchase wire is P09.", "analytic · Channel default Retail + Wholesale")
+        + `<div class="callout warn">If Correspondent is turned on: banner “Use P09 for purchase; Funded metrics exclude Correspondent.”</div>`
+        + filters("", "Retail + Wholesale")
+        + `<div class="kpis">
+            ${kpi({label:"Funded units", val:"958", wowClass:"good", wow:"WoW ▲ 3%", id:"M-VOL-06", basis:"event"})}
+            ${kpi({label:"Funded volume", val:"$412M", wow:"context with units", id:"M-VOL-07", basis:"event"})}
+            ${kpi({label:"CTC → fund p50/p90", dual:[{lab:"p50", val:"4.1"},{lab:"p90", val:"7.8"}], wow:"SLA 5 bd", id:"M-CYC-02 / 10", basis:"event"})}
+            ${kpi({label:"Docs out → signed p50", val:"1.6", unit:"bd", wow:"", id:"M-CYC-17", basis:"event"})}
+            ${kpi({label:"Signed → funded p50", val:"0.7", unit:"bd", wow:"", id:"M-CYC-18", basis:"event"})}
+            ${kpi({label:"CTC not scheduled", val:"41", wowClass:"bad", wow:"up bad", id:"M-AGE-07", basis:"As-of"})}
+            ${kpi({label:"Funding fail %", val:"3.1%", wowClass:"bad", wow:"up bad", id:"M-QLT-15", basis:"event"})}
+            ${kpi({label:"Units / closer FTE", val:"22", wow:"", id:"M-CAP-01", basis:"week"})}
+          </div>`
+        + `<div class="panel"><h2>Same-week funnel (one loan once)</h2>
+          ${funnel([{lab:"CTC", n:"612"},{lab:"Scheduled", n:"571"},{lab:"Docs out", n:"540"},{lab:"Signed", n:"510"},{lab:"Funded", n:"958"},{lab:"Funding fail", n:"18", drop:true}])}</div>`
+        + drills([["P07","Conditions"],["P04","Title/CD"],["P10","Post-close"]]);
+      },
+
+      P09() {
+        return head("P09", "Run a purchase factory. Never say Funded on this page. This is the Correspondent manufacturing spine.", "analytic · Channel locked Correspondent")
+        + filters("", "Correspondent")
+        + `<div class="kpis">
+            ${kpi({label:"Submissions", val:"210", wow:"not registrations", id:"M-VOL-08", basis:"event"})}
+            ${kpi({label:"Purchased units", val:"188", wowClass:"good", wow:"not Funded", id:"M-VOL-09", basis:"event"})}
+            ${kpi({label:"Purchased volume", val:"$74M", wow:"context", id:"M-VOL-10", basis:"event"})}
+            ${kpi({label:"Purchase approved", val:"196", wow:"P07 analog", id:"M-VOL-05C", basis:"event"})}
+            ${kpi({label:"Sub → purchase p50/p90", dual:[{lab:"p50", val:"3.1"},{lab:"p90", val:"6.4"}], wow:"SLA 3 bd", id:"M-CYC-11", basis:"event"})}
+            ${kpi({label:"Sub → decision p50", val:"1.8", unit:"bd", wow:"SLA 2 bd", id:"M-CYC-11A", basis:"event"})}
+            ${kpi({label:"Submission-to-purchase", val:"86%", wowClass:"good", wow:"cohort", id:"M-FAL-03", basis:"cohort"})}
+            ${kpi({label:"Pre-purchase defect %", val:"11%", wowClass:"bad", wow:"file-fail", id:"M-QLT-09", basis:"event", drill:"P12"})}
+          </div>`
+        + `<div class="panel"><h2>Funnel (one file once)</h2>
+          ${funnel([{lab:"Intake", n:"240"},{lab:"Submission", n:"210"},{lab:"Purchase appr.", n:"196"},{lab:"Purchased", n:"188"},{lab:"Rejected", n:"22", drop:true}])}</div>`
+        + `<div class="panel"><h2>TPO scorecard</h2>
+          ${table(["TPO","Submissions","Purchased","Pull-through","p90 bd","Defect %","Kickouts"],
+            [["Summit TPO","48","41","85%","5.2","8%","1"],["Lakeside","36","28","78%","8.1","16%","3"],["Harbor","22","21","95%","3.4","4%","0"]])}</div>`
+        + drills([["P12","Quality"],["P10","Trailing"],["P11","Delivery"],["P06","Pre-purchase UW"]]);
+      },
+
+      P10() {
+        return head("P10", "Get Funded and Correspondent-purchased files ship-ready. Clock starts at Funded/purchase, not CTC.", "analytic")
+        + filters(`<label>Document type<select><option>All trailers</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Post-close WIP", val:"1,102", wow:"context", id:"M-VOL-14", basis:"As-of"})}
+            ${kpi({label:"Trailing cycle p50/p90", dual:[{lab:"p50", val:"11"},{lab:"p90", val:"22"}], wow:"SLA 15 bd", id:"M-CYC-12", basis:"event"})}
+            ${kpi({label:"Missing at day 10", val:"24%", wowClass:"bad", wow:"up bad", id:"M-QLT-12 N=10", basis:"As-of"})}
+            ${kpi({label:"Missing at day 15", val:"11%", wowClass:"bad", wow:"up bad", id:"M-QLT-12 N=15", basis:"As-of"})}
+            ${kpi({label:"WIP age p50", val:"9", unit:"bd", wow:"", id:"M-AGE-08", basis:"As-of"})}
+            ${kpi({label:"Units / post-closer FTE", val:"31", wow:"", id:"M-CAP-01", basis:"week"})}
+          </div>`
+        + `<div class="panel"><h2>Missing document type × age</h2>
+          ${heat([{m:"Note", c:[2,2,3,1]},{m:"Recorded instrument", c:[1,2,4,4]},{m:"Final title", c:[2,3,3,4]},{m:"Other trailers", c:[2,2,2,3]}])}
+          <p class="sub">Slice by State before blaming internal teams for county recording. Corr waiting-on often = TPO.</p></div>`
+        + drills([["P11","Delivery"],["P14","Capacity"],["P09","TPO trailers"]]);
+      },
+
+      P11() {
+        return head("P11", "Deliver ship-ready loans and reach Investor purchase. Delivered ≠ Investor purchased ≠ Funded.", "analytic")
+        + filters(`<label>Investor<select><option>All investors</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Delivered units", val:"1,020", wowClass:"good", wow:"up good", id:"M-VOL-11", basis:"event"})}
+            ${kpi({label:"Investor purchased units", val:"964", wowClass:"good", wow:"not Delivered", id:"M-VOL-12", basis:"event"})}
+            ${kpi({label:"Fund/purch → delivered p50", val:"8.2", unit:"bd", wow:"", id:"M-CYC-13", basis:"event"})}
+            ${kpi({label:"Delivered → inv. purch p50", val:"4.1", unit:"bd", wow:"SLA 5 bd", id:"M-CYC-14", basis:"event"})}
+            ${kpi({label:"Delivered not purchased", val:"86", wowClass:"bad", wow:"aging M-AGE-09", id:"M-AGE-09", basis:"As-of"})}
+            ${kpi({label:"Kickout rate", val:"2.4%", wowClass:"bad", wow:"up bad", id:"M-QLT-10", basis:"event", drill:"P12"})}
+          </div>`
+        + `<div class="panel"><h2>Funnel with kickout branch</h2>
+          ${funnel([{lab:"Ship-ready", n:"1,080"},{lab:"Delivered", n:"1,020"},{lab:"Investor purchased", n:"964"},{lab:"Kickout", n:"24", drop:true}])}</div>`
+        + `<div class="panel"><h2>Kickout reason mix</h2>${table(["Reason","Share","Channel heavy"],[["Trailing / stack","38%","All"],["Collateral","22%","Retail"],["TPO package","19%","Corr"],["Data / ULDD","12%","All"],["Other","9%",""]])}</div>`
+        + drills([["P12","Quality"],["P10","Trailing"]]);
+      },
+
+      P12() {
+        return head("P12", "Manufacturing defects and kickouts. Not independent audit QC.", "analytic")
+        + `<div class="callout bad">Persistent subtitle: Manufacturing quality — not audit QC.</div>`
+        + filters(`<label>QC type<select><option>All manufacturing</option><option>Pre-fund</option><option>Pre-purchase</option><option>Post-close</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Pre-fund file-fail (critical)", val:"1.8%", wowClass:"bad", wow:"up bad", id:"M-QLT-07", basis:"event"})}
+            ${kpi({label:"Post-close file-fail", val:"3.6%", wowClass:"bad", wow:"up bad", id:"M-QLT-08", basis:"event"})}
+            ${kpi({label:"Pre-purchase file-fail", val:"11%", wowClass:"bad", wow:"Corr", id:"M-QLT-09", basis:"event", drill:"P09"})}
+            ${kpi({label:"Kickout rate", val:"2.4%", wowClass:"bad", wow:"up bad", id:"M-QLT-10", basis:"event", drill:"P11"})}
+            ${kpi({label:"Rework %", val:"8%", wowClass:"bad", wow:"up bad", id:"M-QLT-03", basis:"event", drill:"P07"})}
+            ${kpi({label:"Sample coverage", val:"22%", wow:"reviewed / eligible", id:"coverage", basis:"event"})}
+          </div>`
+        + `<div class="panel"><h2>TPO rolling 90-day (M-QLT-13)</h2>${table(["TPO","Pre-purch fail","Kickouts","Trend"],[["Lakeside","16%","3","up"],["Summit TPO","8%","1","flat"],["Harbor","4%","0","down"]])}</div>`
+        + drills([["P11","Delivery"],["P09","Correspondent"],["P07","Rework"]]);
+      },
+
+      P13() {
+        return head("P13", "Third-party order performance. TPO and Broker are not Vendors — TPO scorecards live on P09/P12.", "analytic · order grain")
+        + filters(`<label>Vendor type<select><option>AMC</option><option>Title</option><option>Credit</option><option>Flood</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Orders completed", val:"1,104", wow:"context", id:"M-VEN-01", basis:"event"})}
+            ${kpi({label:"On-time %", val:"74%", wowClass:"bad", wow:"up good, below SLA", id:"M-VEN-03", basis:"event"})}
+            ${kpi({label:"Cycle p90", val:"12.4", unit:"bd", wow:"AMC", id:"M-VEN-02", basis:"event"})}
+            ${kpi({label:"Revision %", val:"9%", wowClass:"bad", wow:"up bad", id:"M-VEN-04", basis:"event"})}
+            ${kpi({label:"Top-vendor concentration", val:"37%", wow:"context", id:"M-VEN-06", basis:"event"})}
+            ${kpi({label:"Cost / order", val:"n/a", wow:"omit until Finance join — not $0", id:"M-VEN-05", basis:"unavailable"})}
+          </div>`
+        + `<div class="panel"><h2>Rank table first (no pie)</h2>
+          ${table(["Vendor","Type","Volume","On-time %","p50","p90","Revision %","Share"],
+            [["Northstar","AMC","410","81%","5.8","9.2","6%","37%"],["Summit","AMC","288","61%","7.9","14.8","12%","26%"],["County Title","Title","190","77%","4.2","8.0","—","22%"]])}</div>`
+        + drills([["P03","Appraisal"],["P04","Title"],["P05","Flood/HOI"]]);
+      },
+
+      P14() {
+        return head("P14", "Match productive FTE to arrivals and WIP. Default rank is team, not employee.", "analytic · employee-day")
+        + filters(`<label>Role<select><option>Processor</option><option>Underwriter</option><option>Closer</option><option>Post-closer</option><option>Corr analyst</option></select></label>`)
+        + `<div class="kpis">
+            ${kpi({label:"Units / FTE", val:"18", wow:"processor week", id:"M-CAP-01", basis:"week"})}
+            ${kpi({label:"Queue / FTE", val:"21", wow:"band 15–25", id:"M-CAP-02", basis:"As-of"})}
+            ${kpi({label:"Completions − arrivals", val:"−28", wowClass:"bad", wow:"processor role", id:"M-CAP-05", basis:"week"})}
+            ${kpi({label:"New vs WIP mix", val:"36% new", wow:"context", id:"M-CAP-04", basis:"week"})}
+            ${kpi({label:"SLA-breach (enterprise)", val:"18%", wowClass:"bad", wow:"context from P15", id:"M-AGE-03", basis:"As-of"})}
+            ${kpi({label:"Utilization", val:"n/a", wow:"hide if no capacity plan", id:"M-CAP-03", basis:"unavailable"})}
+          </div>`
+        + `<div class="panel"><h2>Arrivals vs completions by day (role = processor)</h2>${spark([50,48,62,40,55,30,20])}</div>`
+        + `<div class="panel"><h2>Team table</h2>${table(["Team","Prod FTE","Queue","Queue/FTE","Units/FTE","SLA-breach files"],[["Pod A","12.0","412","34","19","48"],["Pod B","14.5","388","27","16","61"],["Wholesale 1","8.0","290","36","17","40"]])}</div>`
+        + drills([["P02","Processing"],["P06","UW"],["P08","Closing"],["P09","Corr"],["P10","Post-close"]]);
+      }
+    };
+
+    function render(id) {
+      const key = resolve(id);
+      nav(key);
+      document.getElementById("app").innerHTML = pages[key]();
+      window.scrollTo(0, 0);
+    }
+
+    const start = resolve((location.hash || "#HOME").replace("#",""));
+    render(start);
+    window.addEventListener("hashchange", () => render(location.hash.replace("#","")));
+  </script>
+</body>
+</html>
